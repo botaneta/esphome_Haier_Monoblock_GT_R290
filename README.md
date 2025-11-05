@@ -59,18 +59,18 @@ RS485 B	GPIO16 (RX)	Línea B
 
 ⚠️ Asegúrate de que la dirección Modbus y la velocidad (baud_rate) coincidan con la configuración de tu máquina de aerotermia.
 
+```
 🧠 Recursos adicionales
 
-📖 Documentación oficial de ESPHome Modbus
-
-🔌 Guía Modbus Home Assistan https://esphome.io/components/modbus_controller.html
+📖 [Documentación oficial de ESPHome Modbus](https://esphome.io/components/modbus_controller.html)
 
 🧰 [Mapa Modbus Haier](./documents/HAIER_R290_ATW_MODBUS_REGISTER_SUBUNITS.pdf)
 
+```
 🖥️ Ejemplo de interfaz en Home Assistant
 <img src="images/homeassistant_dashboard.png" alt="Dashboard de Home Assistant" width="600"/>
 
-
+```
 🤝 Contribuir
 
 Si deseas mejorar la configuración o añadir compatibilidad con otros modelos de aerotermia:
@@ -81,11 +81,5 @@ Crea una rama con tu mejora:
 
 git checkout -b feature/nueva-funcionalidad
 
-
 Envía un pull request describiendo los cambios.
-
-🪪 Licencia
-
-Este proyecto está licenciado bajo la MIT License.
-Consulta el archivo LICENSE
- para más detalles.
+```
