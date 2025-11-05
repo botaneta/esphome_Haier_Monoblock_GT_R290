@@ -1,12 +1,12 @@
 # esphome_Haier_Monoblock_GT_R290
 🏠 Integración de Aerotermia Haier AW062MUGHA en Home Assistant con ESPHome y Modbus
-```
-📘 Descripción
+
+## 📘 Descripción
 
 Este proyecto permite integrar una máquina de aerotermia en Home Assistant utilizando ESPHome y el protocolo Modbus RTU/TCP.
 El objetivo es monitorizar y controlar parámetros como temperaturas, modos de funcionamiento, compresor, bomba de agua, etc., directamente desde la interfaz de Home Assistant.
 ```
-⚙️ Características principales
+## ⚙️ Características principales
 
 Comunicación mediante Modbus RTU o TCP.
 
@@ -20,8 +20,8 @@ Integración directa con Home Assistant mediante ESPHome.
 
 Configurable mediante un único archivo .yaml.
 
-```
-🧩 Integración en Home Assistant
+
+## 🧩 Integración en Home Assistant
 
 Copia el archivo aerotermia.yaml en tu carpeta de configuraciones de ESPHome.
 
@@ -33,9 +33,9 @@ Una vez flasheado el dispositivo, aparecerá automáticamente en Home Assistant.
 
 Añade las entidades de sensores y controles según tus necesidades.
 
-```
 
-🔌 Conexión Modbus
+
+## 🔌 Conexión Modbus
 
 Componente	Pin ESP32	Descripción.
 RS485 A	GPIO17 (TX)	Línea A
@@ -60,7 +60,7 @@ RS485 B	GPIO16 (RX)	Línea B
 ⚠️ Asegúrate de que la dirección Modbus y la velocidad (baud_rate) coincidan con la configuración de tu máquina de aerotermia.
 
 ```
-🧠 Recursos adicionales
+## 🧠 Recursos adicionales
 
 📖 [Documentación oficial de ESPHome Modbus](https://esphome.io/components/modbus_controller.html)
 
@@ -71,7 +71,7 @@ RS485 B	GPIO16 (RX)	Línea B
 <img src="images/homeassistant_dashboard.png" alt="Dashboard de Home Assistant" width="600"/>
 
 ```
-🤝 Contribuir
+## 🤝 Contribuir
 
 Si deseas mejorar la configuración o añadir compatibilidad con otros modelos de aerotermia:
 
