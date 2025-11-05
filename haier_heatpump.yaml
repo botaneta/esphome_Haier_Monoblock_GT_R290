@@ -1,0 +1,1269 @@
+substitutions:
+  devicename: haier_aw062_mugha
+  description: HAIER R290 
+
+
+esphome:
+  name: "${devicename}"
+  comment: "${description}"
+  friendly_name: "${description}"
+  project:
+    name: "${devicename}.${description}"
+    version: 1.0.1
+
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+  level: DEBUG
+  baud_rate: 0
+
+# Enable Home Assistant API
+api:
+  reboot_timeout: 
+    minutes: 10
+  
+
+web_server:
+  #port: 80
+  version: 3
+  sorting_groups:
+    - id: sorting_group_control
+      name: "Heatpump control"
+      sorting_weight: 5
+    - id: sorting_group_settings
+      name: "Heatpump settings"
+      sorting_weight: 10
+    - id: sorting_group_sensor_outdoor_unit
+      name: "Outdoor unit"
+      sorting_weight: 20
+    - id: sorting_group_sensor_indoor_unit
+      name: "Indoor unit"
+      sorting_weight: 15  
+    - id: sorting_group_thermostat
+      name: "Home thermostat"
+      sorting_weight: 3
+
+
+ota:
+  - platform: esphome
+    password: "haiergtr290"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+ 
+# Enable fallback hotspot (captive portal) in case wifi connection fails
+  power_save_mode: none
+  ap:
+    ssid: "${devicename}-setup"
+    password: "0123456789"
+
+captive_portal:
+
+
+globals:
+  
+  - id: compressor_start_count
+    type: int
+    restore_value: yes
+    initial_value: '40'    
+  - id: compressor_start_count_day
+    type: int
+    restore_value: yes
+    initial_value: '0'
+  - id: compressor_start_count_hour
+    type: int
+    restore_value: yes
+    initial_value: '0'  
+  - id: compressor_daily_on_time
+    type: float
+    restore_value: yes
+    initial_value: '0.0'
+  - id: motor_running
+    type: bool
+    restore_value: yes
+    initial_value: 'false'
+  - id: compressor_count_hour
+    restore_value: yes
+    type: float
+    initial_value: '44'
+
+
+
+uart:
+  id: mod_bus
+  tx_pin: 17
+  rx_pin: 16
+  baud_rate: 9600
+  stop_bits: 1
+
+modbus:
+  flow_control_pin: 5
+  id: modbus1
+
+
+modbus_controller: 
+    ## the Modbus heatpump
+  - id: modbus_heatpump
+    address: 0x1
+    modbus_id: modbus1
+    setup_priority: -10
+    update_interval: 10s
+  
+
+
+
+
+
+
+binary_sensor:
+
+  ######################## HEATPUMP ##############################
+  #Register: 40139 -> outdoor unit defrosting operation
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    id: "${devicename}_outdoor_unit_defrosting"
+    name: "Defrosting operation"
+    web_server:
+      sorting_group_id: sorting_group_sensor_outdoor_unit
+    bitmask: 0x1
+    register_type: holding
+    address: 40139
+
+ 
+
+
+
+number:
+
+ ###################  HEATPUMP  ##############################     
+  # Register 40003 Temperature setting of zone1
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Setpoint zone1"
+    id: "${devicename}_setpoint_zone1"
+    icon: "mdi:thermometer-lines"
+    address: 40003
+    mode: BOX
+    web_server:
+      sorting_group_id: sorting_group_control
+    value_type: U_WORD
+    unit_of_measurement: "ºC"
+    device_class: temperature
+    min_value: 0
+    max_value: 80
+    step: 0.5
+    multiply: 2
+    
+
+  # Register 40045 Compresor control load
+  # 0---> AUTO
+  # 1..9 ---> compressor OFF
+  # 10...100  --> normal range
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Set compressor load \n(0auto, 1..9off, 10..100range)"
+    id: "${devicename}_set_compresor_control_load"
+    icon: mdi:piston
+    address: 40045
+    mode: SLIDER
+    web_server:
+      sorting_group_id: sorting_group_control
+    value_type: U_WORD
+    unit_of_measurement: "ºC"
+    device_class: temperature
+    min_value: 0
+    max_value: 100
+    step: 1
+    
+    
+
+
+  
+    
+
+select:
+
+  # Register: 40001 ON/OFF state
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    id: "${devicename}_set_power_onoff"
+    name: "Power on/off"
+    address: 40001
+    entity_category: config
+    icon: "mdi:toggle-switch"
+    web_server:
+        sorting_group_id: sorting_group_control
+    value_type: U_WORD
+    optimistic: false
+    optionsmap: 
+      "Wait": 0
+      "ON": 1
+      "OFF": 2  
+    write_lambda: |-
+      // La escritura es solo cuando se cambia la opción
+      if (x == "ON") {
+        return 0x0001;
+      }else if (x == "OFF") {
+        return 0x0000;
+      }else{
+        return {};  // Retorna vacío para evitar conflictos    
+      }
+
+  # Register: 40002
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Operational Mode"
+    id: "${devicename}_set_operational_mode"
+    icon: "mdi:fan"
+    address: 40002
+    web_server:
+      sorting_group_id: sorting_group_control
+    value_type: U_WORD
+    optimistic: false
+    optionsmap:
+      "Heat + Dhw": 8
+      "Cool + Dhw": 7
+      "Auto + Dhw": 6
+      "Heat + pool": 5
+      "Pool": 4
+      "DHW": 3
+      "Heat": 2
+      "Cool": 1
+      "Auto": 0
+    
+
+    
+
+  # Register: 40008
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "ECO mode"
+    id: "${devicename}_set_eco_mode"
+    icon: mdi:sprout-outline
+    address: 40008
+    web_server:
+      sorting_group_id: sorting_group_control
+    value_type: U_WORD
+    optionsmap:
+      "Wait": 0
+      "OFF": 1
+      "ON": 2
+    write_lambda: |-
+      if (x == "ON") {
+        return 0x0001;
+      }else if (x == "OFF") {
+        return 0x0000;
+      }else{
+        return {};  // Retorna vacío para evitar conflictos    
+      }
+
+      
+
+  # Register: 40012 -> Work mode
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Work mode"
+    id: "${devicename}_set_work_mode"
+    icon: "mdi:cog-outline"
+    address: 40012
+    web_server:
+      sorting_group_id: sorting_group_control
+    value_type: U_WORD
+    optionsmap:
+      "Normal": 0
+      "Silent": 1
+      "Turbo" : 2
+
+  # Register: 40021 -> Set forced defrosting for outdor unit
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Force defrosting"
+    id: "${devicename}_set_forced_defrosting"
+    icon: "mdi:cog-outline"
+    address: 40021
+    web_server:
+      sorting_group_id: sorting_group_control
+    value_type: U_WORD
+    optionsmap:
+      "NO": 0
+      "YES": 1
+    
+  
+  
+sensor:
+  
+  ######## HEATPUMP #######################
+  - platform: template
+    name: "Compressor Starts Per Hour"
+    id: "${devicename}_compressor_start_count_hour"
+    unit_of_measurement: "starts/h"
+    icon: mdi:counter
+    accuracy_decimals: 0
+    update_interval: 10s
+    lambda: |-
+      return id(compressor_start_count_hour);
+
+  - platform: template
+    name: "Compressor Starts Count"
+    id: "${devicename}_compressor_start_count"
+    unit_of_measurement: ""
+    icon: mdi:counter
+    accuracy_decimals: 0
+    update_interval: 10s
+    lambda: |-
+      return id(compressor_start_count);
+
+  - platform: template
+    name: "Compressor Starts Per Daily"
+    id: "${devicename}_compressor_start_count_daily"
+    unit_of_measurement: "starts/Day"
+    icon: mdi:counter
+    accuracy_decimals: 0
+    update_interval: 60s
+    lambda: |-
+      return id(compressor_start_count_day);
+
+  - platform: template
+    name: "Compressor hourometer"
+    id: "${devicename}_compressor_hourometer"
+    unit_of_measurement: "H"
+    icon: mdi:counter
+    accuracy_decimals: 0
+    update_interval: 60s
+    lambda: |-
+      return id(compressor_count_hour);
+
+  - platform: template
+    name: "Compressor daily run"
+    id: "${devicename}_compressor_daily_run"
+    unit_of_measurement: "h"
+    icon: mdi:counter
+    lambda: 'return id(compressor_daily_on_time);'
+    update_interval: 60s
+
+  - platform: uptime
+    name: Uptime
+    id: "${devicename}_uptime"
+    icon: mdi:timelapse
+
+  - platform: template
+    name: "Heating power calculated"
+    id: "${devicename}_heating_power"
+    icon: mdi:fire
+    state_class: measurement
+    unit_of_measurement: W
+    accuracy_decimals: 1
+    web_server:
+      sorting_group_id: sorting_group_sensor_indoor_unit
+
+  - platform: template
+    name: COP
+    id: "${devicename}_COP"
+    update_interval: 5s
+    state_class: measurement
+    unit_of_measurement: ""
+    accuracy_decimals: 2
+    icon: mdi:poll
+    web_server:
+      sorting_group_id: sorting_group_sensor_indoor_unit
+    lambda: |-
+      if(id(${devicename}_power_consumption).state < 100){
+        id(${devicename}_heating_power).publish_state(0);
+        return 0;
+      }
+      auto delta = id(${devicename}_outdoor_water_outlet_temp).state  - id(${devicename}_outdoor_water_inlet_temp).state;
+      auto power = delta * 60 * id(${devicename}_pump_flow).state;
+      power = power / 0.860;
+      id(${devicename}_heating_power).publish_state(power);
+      return  (power / id(${devicename}_power_consumption).state);
+
+  - platform: template
+    name: COP_machine
+    id: "${devicename}_COP_machine"
+    update_interval: 5s
+    state_class: measurement
+    unit_of_measurement: ""
+    accuracy_decimals: 2
+    icon: mdi:poll
+    web_server:
+      sorting_group_id: sorting_group_sensor_indoor_unit
+    lambda: |-
+      if(id(${devicename}_power_consumption).state < 100){
+        id(${devicename}_heating_power).publish_state(0);
+        return 0;
+      }
+      return  id(${devicename}_power_cooling_heating).state / id(${devicename}_power_consumption).state;  
+    
+  
+  
+  
+  # Register: 40103 ->  Temperature setting water ZONE1
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Temperature Water set Zone1"
+    id: "${devicename}_setting_temp_water_z1"
+    state_class: measurement
+    register_type: holding
+    address: 40103
+    value_type: U_WORD
+    web_server:
+      sorting_group_id: sorting_group_settings
+    unit_of_measurement: "ºC"
+    device_class: temperature
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.5
+
+  # Register: 40141 ->  Outdoor unit ambient temperature
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Ambient temperature"
+    id: "${devicename}_outdoor_ambient_temp"
+    state_class: measurement
+    register_type: holding
+    icon: mdi:home-thermometer-outline
+    address: 40141
+    value_type: U_WORD
+    web_server:
+      sorting_group_id: sorting_group_sensor_outdoor_unit
+    unit_of_measurement: "ºC"
+    device_class: temperature
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+      
+  # Register: 40143 ->  Temperature water ZONE1
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Temperature Water Zone1"
+    id: "${devicename}_temp_water_z1"
+    state_class: measurement
+    register_type: holding
+    address: 40143
+    value_type: U_WORD
+    web_server:
+      sorting_group_id: sorting_group_sensor_indoor_unit
+    unit_of_measurement: "ºC"
+    device_class: temperature
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1    
+
+  # Register: 40151 ->  Inlet temperature heater
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Inlet water temperature"
+    id: "${devicename}_outdoor_water_inlet_temp"
+    state_class: measurement
+    register_type: holding
+    icon: mdi:coolant-temperature
+    address: 40151
+    value_type: U_WORD
+    web_server:
+      sorting_group_id: sorting_group_sensor_outdoor_unit
+    unit_of_measurement: "ºC"
+    device_class: temperature
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+ 
+ #  Register: 40152 ->  Outlet temperature heater
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Outlet water temperature"
+    id: "${devicename}_outdoor_water_outlet_temp"
+    state_class: measurement
+    register_type: holding
+    icon: mdi:coolant-temperature
+    address: 40152
+    value_type: U_WORD
+    web_server:
+      sorting_group_id: sorting_group_sensor_outdoor_unit
+    unit_of_measurement: "ºC"
+    device_class: temperature
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Register: 40157 ->  compressor high pressure
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Compressor high R290 pressure"
+    id: "${devicename}_compressor_high_pressure"
+    state_class: measurement
+    register_type: holding
+    address: 40157
+    value_type: U_WORD
+    web_server:
+      sorting_group_id: sorting_group_sensor_outdoor_unit
+      sorting_weight: 10
+    unit_of_measurement: "bar"
+    device_class: pressure
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01  
+  
+  # Register: 40158 ->  compressor low pressure
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Compressor low R290 pressure"
+    id: "${devicename}_compressor_low_pressure"
+    state_class: measurement
+    register_type: holding
+    address: 40158
+    value_type: U_WORD
+    web_server:
+      sorting_group_id: sorting_group_sensor_outdoor_unit
+      sorting_weight: 11
+    unit_of_measurement: "bar"
+    device_class: pressure
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+
+  # Register: 40159 ->  Compressor Frequency
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Compressor Frequency"
+    id: "${devicename}_compressor_frequency"
+    state_class: measurement
+    icon: mdi:piston
+    register_type: holding
+    address: 40159
+    value_type: U_WORD
+    web_server:
+      sorting_group_id: sorting_group_sensor_outdoor_unit
+    unit_of_measurement: "Hz"
+    device_class: frequency
+    accuracy_decimals: 0
+    filters:
+      - multiply: 0.1
+    on_value:
+      then:
+        - lambda: |-
+            static bool runnig_before= false;
+            bool runnig_now = x > 0;
+
+            if (!runnig_before && runnig_now) {
+              id(compressor_start_count) += 1;
+              id(compressor_start_count_hour) += 1;
+              id(compressor_start_count_day) += 1;
+            } 
+
+            runnig_before=runnig_now;
+            
+
+  # Register: 40160 ->  Speed of FAN
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "RPM FAN"
+    id: "${devicename}_rpm_fan"
+    state_class: measurement
+    register_type: holding
+    address: 40160
+    value_type: U_WORD
+    web_server:
+      sorting_group_id: sorting_group_sensor_outdoor_unit
+    unit_of_measurement: "rpm"
+    device_class: speed
+    accuracy_decimals: 0
+    filters:
+      - multiply: 1
+
+  # Register: 40161 ->  compressor high temperature
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Compressor High R290 temperature"
+    id: "${devicename}_compressor_high_temp"
+    state_class: measurement
+    register_type: holding
+    address: 40161
+    value_type: U_WORD
+    web_server:
+      sorting_group_id: sorting_group_sensor_outdoor_unit
+      sorting_weight: 12
+    unit_of_measurement: "ºC"
+    device_class: temperature
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Register: 40162 ->  compressor low temperature
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Compressor low R290 temperature"
+    id: "${devicename}_compressor_low_temp"
+    state_class: measurement
+    register_type: holding
+    address: 40162
+    value_type: U_WORD
+    web_server:
+      sorting_group_id: sorting_group_sensor_outdoor_unit
+      sorting_weight: 13
+    unit_of_measurement: "ºC"
+    device_class: temperature
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Register: 40163 ->  module temperature
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Module temperature"
+    id: "${devicename}_module_temp"
+    state_class: measurement
+    register_type: holding
+    address: 40163
+    value_type: U_WORD
+    web_server:
+      sorting_group_id: sorting_group_sensor_outdoor_unit
+      sorting_weight: 16
+    unit_of_measurement: "ºC"
+    device_class: temperature
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Register: 40164 ->  heater  exchager in temperature
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Heater inlet temperature"
+    id: "${devicename}_heater_in_temp"
+    state_class: measurement
+    register_type: holding
+    address: 40164
+    value_type: U_WORD
+    web_server:
+      sorting_group_id: sorting_group_sensor_outdoor_unit
+      sorting_weight: 15
+    unit_of_measurement: "ºC"
+    device_class: temperature
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Register: 40165 ->  heater  exchager out temperature
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Heater outlet temperature"
+    id: "${devicename}_heater_out_temp"
+    state_class: measurement
+    register_type: holding
+    address: 40165
+    value_type: U_WORD
+    web_server:
+      sorting_group_id: sorting_group_sensor_outdoor_unit
+      sorting_weight: 14
+    unit_of_measurement: "ºC"
+    device_class: temperature
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1 
+  
+  # Register 40191 -> caudal
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    id: "${devicename}_pump_flow"
+    name: "Pump flow"
+    state_class: measurement
+    register_type: holding
+    address: 40191
+    value_type: U_WORD 
+    icon: mdi:waves-arrow-right  
+    web_server:
+      sorting_group_id: sorting_group_sensor_outdoor_unit
+    unit_of_measurement: "L/min"
+    device_class: volume_flow_rate
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.1
+  
+  # Register 40192 -> water pressure
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    id: "${devicename}_water_pressure"
+    name: "Water pressure"
+    state_class: measurement
+    register_type: holding
+    address: 40192
+    value_type: U_WORD
+    web_server:
+      sorting_group_id: sorting_group_sensor_outdoor_unit
+    unit_of_measurement: "bar"
+    device_class: pressure
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  
+  # Register 40193 -> Current compressor exterior unit
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Compressor current"
+    id: "${devicename}_compressor_current"
+    state_class: measurement
+    register_type: holding
+    address: 40193
+    value_type: U_WORD
+    web_server:
+      sorting_group_id: sorting_group_sensor_outdoor_unit
+    unit_of_measurement: "A"
+    device_class: current
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # REgister 40194 -> % Machine all input current
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Machine input current"
+    id: "${devicename}_machine_input_current"
+    state_class: measurement
+    unit_of_measurement: "A"
+    device_class: current
+    accuracy_decimals: 1
+    filters: 
+      - multiply: 0.1
+    register_type: holding
+    address: 40194
+    value_type: U_WORD
+    web_server:
+      sorting_group_id: sorting_group_sensor_indoor_unit
+
+  # Register 40196 -> power consumption
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    id: "${devicename}_power_consumption"
+    name: "Power consumption"
+    state_class: measurement
+    register_type: holding
+    address: 40196
+    value_type: U_WORD
+    web_server:
+      sorting_group_id: sorting_group_sensor_outdoor_unit
+    unit_of_measurement: "W"
+    device_class: power
+    accuracy_decimals: 1
+    
+
+  # Register 40198 -> Power heating/cooling 
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Power cooling/heating"
+    id: "${devicename}_power_cooling_heating"
+    state_class: measurement
+    register_type: holding
+    address: 40198
+    value_type: U_WORD
+    unit_of_measurement: "W"
+    device_class: power
+    web_server: 
+      sorting_group_id: sorting_group_sensor_indoor_unit
+
+  # Register 40199 -> Compressor control load
+  # Range of control load 10%-------100%   <10% compressor off
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "Compressor control load"
+    id: "${devicename}_compressor_control_load"
+    state_class: measurement
+    register_type: holding
+    address: 40199
+    value_type: U_WORD
+    unit_of_measurement: "%"
+    device_class: speed
+    web_server: 
+      sorting_group_id: sorting_group_sensor_outdoor_unit
+    filters: 
+      - lambda: if(x < 10){return 0;}  
+                return x;
+          
+    
+  
+     
+############  REGISTROS sin documentar  ##############################  
+###########################################################################  
+
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "reg 40129"
+    id: "${devicename}_reg40129"
+    state_class: measurement
+    register_type: holding
+    address: 40129
+    value_type: U_WORD      
+
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "reg 40154"
+    id: "${devicename}_reg40154"
+    state_class: measurement
+    register_type: holding
+    address: 40154
+    value_type: U_WORD 
+
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "reg 40155"
+    id: "${devicename}_reg40155"
+    state_class: measurement
+    register_type: holding
+    address: 40155
+    value_type: U_WORD  
+
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "reg 40156"
+    id: "${devicename}_reg40156"
+    state_class: measurement
+    register_type: holding
+    address: 40156
+    value_type: U_WORD     
+
+
+
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "reg 40190"
+    id: "${devicename}_reg40190"
+    state_class: measurement
+    register_type: holding
+    address: 40190
+    value_type: U_WORD 
+
+
+
+
+#####################################3 
+#  
+
+
+
+  
+
+
+
+text_sensor:
+  
+  ########### THERMOSTAT #################
+  
+
+  #Register 0x000D Power on-off status
+  - platform: modbus_controller
+    modbus_controller_id: modbus_thermostat
+    id: thermostat_power_onoff
+    name: "Thermostat Power ON/OFF"
+    web_server:
+      sorting_group_id: sorting_group_thermostat
+      sorting_weight: 20
+    register_type: holding
+    bitmask: 0
+    address: 0x000D
+    raw_encode: HEXBYTES
+    lambda: |-
+      uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+      switch (value) {
+        case 0: { 
+          auto call = id(climate_control_pid).make_call();
+          call.set_mode("OFF");
+          call.perform();
+          return std::string("OFF");
+        }
+
+        case 1: {
+          auto call = id(climate_control_pid).make_call();
+          std::string str= id(thermostat_work_mode).state;
+          if(str == "Heating") str="HEAT";
+          else if(str== "Cooling") str="COOL";
+          else str="ON";
+          call.set_mode(str);
+          call.perform();
+          return std::string("ON");
+        }  
+        default: return std::string("Unknown");
+      }
+      return x;    
+
+  #Register 0x000F Work mode
+  - platform: modbus_controller
+    modbus_controller_id: modbus_thermostat
+    id: thermostat_work_mode
+    name: "Thermostat Work Mode"
+    web_server:
+      sorting_group_id: sorting_group_thermostat
+      sorting_weight: 20
+    register_type: holding
+    bitmask: 0x00FF
+    address: 0x000F
+    raw_encode: HEXBYTES
+    lambda: |-
+      uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+      value = value & 0x00FF;
+      switch (value) {
+        case 0: {
+          auto call = id(${devicename}_set_operational_mode).make_call();
+          call.set_option("Cool");            //Coment line for dhw system
+          //call.set_option("Cool + Dhw");    //Uncoment line for dhw system
+          call.perform(); 
+
+          if(id(thermostat_power_onoff).state == "OFF") return std::string("Cooling");
+          
+          auto call2 = id(climate_control_pid).make_call();
+          call2.set_mode("COOL");
+          call2.perform();
+          return std::string("Cooling");  
+        }
+
+        case 1: return std::string("Ventilation");
+        
+        case 2: {
+          auto call = id(${devicename}_set_operational_mode).make_call();
+          call.set_option("Heat");            //Coment line for dhw system
+          //call.set_option("Heat + Dhw");    //Uncoment line for dhw system
+          call.perform();
+          
+          if(id(thermostat_power_onoff).state == "OFF") return std::string("Heating");
+          
+          auto call2 = id(climate_control_pid).make_call();
+          call2.set_mode("HEAT");
+          call2.perform();
+          return std::string("Heating");
+        }  
+
+        case 3: 
+          //id(${devicename}_set_operational_mode).publish_state("Heat");
+          return std::string("Floor heating");
+        
+        case 4: 
+          //id(${devicename}_set_operational_mode).publish_state("Heat");
+          return std::string("Heating + floor heating");
+        
+        default: return std::string(x);
+      }
+    
+
+    
+
+               
+
+  #Register 0x0010 Fan speed
+  - platform: modbus_controller
+    modbus_controller_id: modbus_thermostat
+    id: thermostat_fan_speed
+    name: "Thermostat Fan speed"
+    web_server:
+      sorting_group_id: sorting_group_thermostat
+      sorting_weight: 15
+    register_type: holding
+    address: 0x0010
+    bitmask: 0
+    raw_encode: HEXBYTES
+    lambda: |-
+      uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+      switch (value) {
+        case 0: return std::string("Auto");
+        case 1: return std::string("Low");
+        case 2: return std::string("Medium");
+        case 3: return std::string("High");
+        default: return std::string("Unknown");
+      }
+      return x;
+
+  
+    
+
+
+  ############# HEATPUMP #####################
+
+  #Register:  40101 ON/OFF state
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    id: "${devicename}_onoff_state"
+    name: "RUN Heatpump"
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 1
+    bitmask: 0
+    register_type: holding
+    address: 40101
+    raw_encode: HEXBYTES
+    lambda: |-
+      uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+      switch (value) {
+        case 0: return std::string("OFF");
+        case 1: return std::string("ON");
+        default: return std::string("Unknown");
+      }
+      return x;
+
+  #Register: 40102 -> Setting Mode
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    id: "${devicename}_setting_mode"
+    name: "Mode"
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 2
+    bitmask: 0
+    register_type: holding
+    address: 40102
+    raw_encode: HEXBYTES
+    lambda: |-
+      uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+      switch (value) {
+        case 0: return std::string("AUTO");
+        case 1: return std::string("COOLING");
+        case 2: return std::string("HEATING");
+        case 3: return std::string("DHW");
+        case 4: return std::string("Pool");
+        case 5: return std::string("HEATING + Pool");
+        case 6: return std::string("AUTO + DHW");
+        case 7: return std::string("COOLING + DHW");
+        case 8: return std::string("HEATING + DHW");
+        default: return std::string("Unknown");
+      }
+      return x;
+
+  #Register: 40104 -> Setting control zone1
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    id: "${devicename}_setting_control_zone1"
+    name: "Setting control zone1"
+    web_server:
+      sorting_group_id: sorting_group_settings
+    bitmask: 0
+    register_type: holding
+    address: 40104
+    raw_encode: HEXBYTES
+    lambda: |-
+      uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+      switch (value) {
+        case 0: return std::string("Main controller");
+        case 1: return std::string("External controller");
+        case 2: return std::string("Room air temperature");
+        default: return std::string("Unknown");
+      }
+      return x;    
+
+  #Register: 40110 -> Set ECO mode   
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    id: "${devicename}_setting_eco_mode"
+    name: "Setting ECO mode"
+    icon: mdi:sprout-outline
+    web_server:
+      sorting_group_id: sorting_group_settings
+    bitmask: 0
+    register_type: holding
+    address: 40104
+    raw_encode: HEXBYTES
+    lambda: |-
+      uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+      switch (value) {
+        case 0: return std::string("OFF");
+        case 1: return std::string("ON");
+        default: return std::string(x);
+      }
+      return x; 
+
+  #REgister: 40114 -> Work mode
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    id: "${devicename}_work_mode"
+    name: "Work mode"
+    web_server:
+      sorting_group_id: sorting_group_settings
+    #bitmask: 0
+    register_type: holding
+    address: 40114
+    icon: mdi:cogs
+    raw_encode: HEXBYTES
+    lambda: |-
+      uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+      switch (value) {
+        case 0: return std::string("Normal");
+        case 1: return std::string("Silent");
+        case 2: return std::string("Turbo");
+        default: return std::string(x);
+      }
+      return x; 
+
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    id: "${devicename}_current_operation_mode"
+    name: "Current operation mode"
+    web_server:
+      sorting_group_id: sorting_group_sensor_indoor_unit
+    register_type: holding
+    address: 40153
+    icon: "mdi:home-search"
+    raw_encode: HEXBYTES
+    lambda: |-
+      uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+      switch (value) {
+        case 0: return std::string("Auto");
+        case 1: return std::string("Cooling");
+        case 2: return std::string("Heating");
+        case 3: return std::string("Dhw");
+        case 4: return std::string("Pool");
+        case 5: return std::string("Heating + pool");
+      }
+      return x;
+
+  #- platform: modbus_controller
+  #  modbus_controller_id: "${devicename}"
+  #  id: "${devicename}_error_sub_code"
+  #  name: "Error sub-code"
+  #  web_server: 
+  #    sorting_group_id: sorting_group_sensor_indoor_unit
+  #    sorting_weight: 90
+  #  register_type: holding
+  #  address: 40204
+  #  icon: "mdi:alert-octagram"
+  #  lambda: |-
+  #    uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+  #    switch (value){
+  #    
+  #    }
+  #    return x;
+#
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    id: "${devicename}_error_code"
+    name: "Error code"
+    web_server: 
+      sorting_group_id: sorting_group_sensor_indoor_unit
+      sorting_weight: 100
+    register_type: holding
+    address: 40205
+    icon: "mdi:alert-octagram"
+    raw_encode: HEXBYTES
+    lambda: |-
+      ESP_LOGE("ERROR", "  CODE ERROR: %s", x.c_str());
+      uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+      switch (value){
+        case 1: return std::string("E01 HU Water inlet temperature sensor abnormality");
+        case 2: return std::string("E02 HU Water outlet temperature sensor abnormality");
+        case 3: return std::string("E03 HU Liquid pipe temperature sensor abnormality");
+        case 4: return std::string("E04 HU Gas pipe temperature sensor abnormality");
+        case 5: return std::string("E05 EEPROM Abnormality");
+        case 6: return std::string("E06 Communication error with the outdoor unit");
+        case 7: return std::string("E07 Communication Error between remote wired controller and indoor unit ATW-A03N");
+        case 8: return std::string("E08 Differential pressure flow switch abnormality");
+        case 9: return std::string("E09 Duplicate ATW-A03N address");
+        case 10: return std::string("E10 Low flow rate //  DHW sensor abnormality");
+        case 11: return std::string("E11 ATW-A02 Communication abnormality");
+        case 12: return std::string("E12  HU ZONE2 Water mixing valve temperature sensor abnormality");
+        case 13: return std::string("E13 Water leakage");
+        case 14: return std::string("E14 Low pressure switch abnormality");
+        case 15: return std::string("E15 Anti-freeze abnormality");
+        case 16: return std::string("E16 HU Water Inlet/Outlet temperature over high");
+        case 17: return std::string("E17  DC Water pump abnormality // HU ZONE1 Ambient temperature sensor abnormality ");
+        case 18: return std::string("E18 HU ZONE2 Ambient temperature sensor abnormality");
+        case 19: return std::string("E19 Pool mixing valve water outlet // Pool water temperature sensor");
+        case 20: return std::string("E20  Outdoor condenser defrosting coil temperature sensor Te1 abnormality");
+        case 21: return std::string("E21 Outdoor ambient temperature sensor abnormality");
+        case 22: return std::string("E22 Outdoor compressor suction temperature sensor abnormality");
+        case 23: return std::string("E23 Compressor discharge temperature sensor abnormality");
+        case 24: return std::string("E24 Compressor Oil temperature sensor abnormality");
+        case 26: return std::string("E26 Communication Error ATW-A03N");
+        case 27: return std::string("E27 Oil Temperature over high protection");
+        case 28: return std::string("E28 Compressor discharge pressure sensor abnormality");
+        case 29: return std::string("E29 Compressor suction pressure sensor abnormality");
+        case 30: return std::string("E30 High pressure switch HPS abnormality");
+        case 32: return std::string("E32 Outdoor subcooling coil outlet  // Outdoor liquid pipe subcooling temperature sensor abnormality");
+        case 33: return std::string("E33 Outdoor EEPROM communication failure");
+        case 34: return std::string("E34 Compressor discharge temperature over high protection(Td)");
+        case 35: return std::string("E35 Four way valve reversing abnormality");
+        case 36: return std::string("E36  Oil temperature over low protection(Toil)");
+        case 38: return std::string("E38 High pressure over low protection");
+        case 39: return std::string("E39 Low pressure over low protection // Compression ratio over high protection");
+        case 40: return std::string("E40  High pressure over high protection");
+        case 43: return std::string("E43 Compressor discharge temperature sensor over low protection");
+        case 46: return std::string("E46 Communication error with driver PCB");
+        case 49: return std::string("E49 Low pressure switch abnormality");
+        case 51: return std::string("E51 LEVa // LEVb Overcurrent protection");
+        case 52: return std::string("E52 LEVa // LEVb Disconnection Abnormality");
+        case 53: return std::string("E53 CT Current over low or current sensor abnormality");
+        case 54: return std::string("E54 Communication error with subcooling module");
+        case 57: return std::string("E57 Communication Error between subcooling module and Main PCB");
+        case 58: return std::string("E58 Subcooling module Tc1 temperature sensor error");
+        case 59: return std::string("E59 Subcooling module Tc2 temperature sensor error");
+        case 60: return std::string("E60 Subcooling Module");
+        case 61: return std::string("E61 Subcooling Module");
+        case 62: return std::string("E62 Subcooling Module");
+        case 63: return std::string("E63 Subcooling Module dip switch error");
+        case 64: return std::string("E64 CT current over high");
+        case 65: return std::string("E65 BufferTank temperature sensor(Tb) abnormality");
+        case 68: return std::string("E68 Communication error with DHW I/O PCB");
+        case 69: return std::string("E69 DHW I/O PCB tank temperature abnormality ");
+        case 70: return std::string("E70  DHW I/O PCB other abnormalities");
+        case 71: return std::string("E71 Upper or Lower DC fan motor abnormality");
+        case 74: return std::string("E74 System emergency stop abnormality");
+        case 81: return std::string("E81 Compressor driver PCB temperature over high protection");
+        case 82: return std::string("E82 Compressor current protection");
+        case 83: return std::string("E83 Incorrect outdoor unit dip switch setting");
+        case 87: return std::string("E87 Defrosting with over low water temperature");
+        case 110: return std::string("E110 Compressor hardware overcurren");
+        case 111: return std::string("E111 Compressor loss of synchronism");
+        case 112: return std::string("E112 Compressor or Fan motor Driver PCB heat sink temperature over high");
+        case 114: return std::string("E114 The input power supply voltage of the inverter is abnormal");
+        case 116: return std::string("E116 Communication Error between compressor driver PCB and Main PCB");
+        case 117: return std::string("E117 Compressor Or Fan motor software over current");
+        case 118: return std::string("E118 Compressor Start-up abnormality");
+        case 119: return std::string("E119 Compressor driver PCB current detect circuit abnormality");
+        case 121: return std::string("E121 Compressor control board power supply abnormality");
+        case 122: return std::string("E122 Compressor driver PCB heat sink temperature sensor abnormality");
+        case 124: return std::string("E124 Compressor Driver PCB Three-phase power supply abnormality");
+      }
+      return x;
+
+
+
+
+
+
+
+
+
+# Intervalos para contadores
+interval:
+  - interval: 60s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(${devicename}_compressor_frequency).state > 0;'
+          then:
+            - lambda: |-
+                id(compressor_daily_on_time) += 1.0 / 60.0;
+                id(compressor_count_hour) += 1.0 / 60.0;
+
+
+# Reset cada hora y día
+  - interval: 1h
+    then:
+      - globals.set:
+          id: compressor_start_count_hour
+          value: '0'
+
+  - interval: 24h
+    then:
+      - globals.set:
+          id: compressor_start_count_day
+          value: '0'
+      - globals.set:
+          id: compressor_daily_on_time
+          value: '0'
+    
+    
+
+
+       
+          
+
+  
