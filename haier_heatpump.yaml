@@ -1,6 +1,6 @@
 substitutions:
   devicename: haier_aw062_mugha
-  description: HAIER R290 
+  description: HAIER gtR290 
 
 
 esphome:
@@ -9,7 +9,7 @@ esphome:
   friendly_name: "${description}"
   project:
     name: "${devicename}.${description}"
-    version: 1.0.1
+    version: 1.0.0
 
 
 esp32:
@@ -24,8 +24,8 @@ logger:
 
 # Enable Home Assistant API
 api:
-  reboot_timeout: 
-    minutes: 10
+#  reboot_timeout: 
+#    minutes: 10
   
 
 web_server:
@@ -44,11 +44,7 @@ web_server:
     - id: sorting_group_sensor_indoor_unit
       name: "Indoor unit"
       sorting_weight: 15  
-    - id: sorting_group_thermostat
-      name: "Home thermostat"
-      sorting_weight: 3
-
-
+    
 ota:
   - platform: esphome
     password: "haiergtr290"
@@ -71,7 +67,7 @@ globals:
   - id: compressor_start_count
     type: int
     restore_value: yes
-    initial_value: '40'    
+    initial_value: '0'    
   - id: compressor_start_count_day
     type: int
     restore_value: yes
@@ -84,21 +80,21 @@ globals:
     type: float
     restore_value: yes
     initial_value: '0.0'
+  - id: compressor_count_hour
+    restore_value: yes
+    type: float
+    initial_value: '0.0'
   - id: motor_running
     type: bool
     restore_value: yes
     initial_value: 'false'
-  - id: compressor_count_hour
-    restore_value: yes
-    type: float
-    initial_value: '44'
 
 
 
 uart:
-  id: mod_bus
-  tx_pin: 17
-  rx_pin: 16
+  id: mod_bus         # CONNECTION ESP32 PINOUT TO ADAPTER TTL-RS485 
+  tx_pin: 17          # PIN TX -----> pin TX ADPATER TTL-RS485
+  rx_pin: 16          # PIN RX -----> pin RX ADPATER TTL-RS485
   baud_rate: 9600
   stop_bits: 1
 
@@ -106,19 +102,14 @@ modbus:
   flow_control_pin: 5
   id: modbus1
 
-
 modbus_controller: 
     ## the Modbus heatpump
   - id: modbus_heatpump
     address: 0x1
     modbus_id: modbus1
     setup_priority: -10
-    update_interval: 10s
+    update_interval: 10s    # Update frequency
   
-
-
-
-
 
 
 binary_sensor:
@@ -136,9 +127,6 @@ binary_sensor:
     address: 40139
 
  
-
-
-
 number:
 
  ###################  HEATPUMP  ##############################     
@@ -175,8 +163,8 @@ number:
     web_server:
       sorting_group_id: sorting_group_control
     value_type: U_WORD
-    unit_of_measurement: "ºC"
-    device_class: temperature
+    unit_of_measurement: "%"
+    device_class: power_factor
     min_value: 0
     max_value: 100
     step: 1
@@ -237,10 +225,7 @@ select:
       "Cool": 1
       "Auto": 0
     
-
-    
-
-  # Register: 40008
+  # Register: 40008 -> Set ECO Mode
   - platform: modbus_controller
     modbus_controller_id: modbus_heatpump
     name: "ECO mode"
@@ -260,10 +245,8 @@ select:
       }else if (x == "OFF") {
         return 0x0000;
       }else{
-        return {};  // Retorna vacío para evitar conflictos    
+        return {};  
       }
-
-      
 
   # Register: 40012 -> Work mode
   - platform: modbus_controller
@@ -276,9 +259,20 @@ select:
       sorting_group_id: sorting_group_control
     value_type: U_WORD
     optionsmap:
-      "Normal": 0
-      "Silent": 1
-      "Turbo" : 2
+      "Wait": 0
+      "Normal": 1
+      "Silent": 2
+      "Turbo" : 3
+    write_lambda: |-
+      if (x == "Turbo") {
+        return 0x0002;
+      }else if (x == "Silent") {
+        return 0x0001;
+      }else if (x == "Normal") {
+        return 0x000;  
+      }else{
+        return {};  
+      }  
 
   # Register: 40021 -> Set forced defrosting for outdor unit
   - platform: modbus_controller
@@ -354,13 +348,45 @@ sensor:
 
   - platform: template
     name: "Heating power calculated"
-    id: "${devicename}_heating_power"
+    id: "${devicename}_heating_power_calculated"
     icon: mdi:fire
     state_class: measurement
     unit_of_measurement: W
     accuracy_decimals: 1
     web_server:
       sorting_group_id: sorting_group_sensor_indoor_unit
+
+  - platform: template
+    name: "Delta"
+    id: "${devicename}_temperature_delta"
+    icon: mdi:delta
+    state_class: measurement
+    unit_of_measurement: ""
+    accuracy_decimals: 1
+    web_server:
+      sorting_group_id: sorting_group_sensor_indoor_unit    
+
+  - platform: template
+    name: "COP calculated"
+    id: "${devicename}_COP_calculate"
+    update_interval: 5s
+    state_class: measurement
+    unit_of_measurement: ""
+    accuracy_decimals: 2
+    icon: mdi:poll
+    web_server:
+      sorting_group_id: sorting_group_sensor_indoor_unit
+    lambda: |-
+      if(id(${devicename}_power_consumption).state < 100){
+        id(${devicename}_heating_power_calculated).publish_state(0);
+        return 0;
+      }
+      auto delta = id(${devicename}_outdoor_water_outlet_temp).state  - id(${devicename}_outdoor_water_inlet_temp).state;
+      id(${devicename}_temperature_delta).publish_state(delta);
+      auto power = delta * 60 * id(${devicename}_pump_flow).state;
+      power = power / 0.860;
+      id(${devicename}_heating_power_calculated).publish_state(power);
+      return  (power / id(${devicename}_power_consumption).state);
 
   - platform: template
     name: COP
@@ -377,32 +403,8 @@ sensor:
         id(${devicename}_heating_power).publish_state(0);
         return 0;
       }
-      auto delta = id(${devicename}_outdoor_water_outlet_temp).state  - id(${devicename}_outdoor_water_inlet_temp).state;
-      auto power = delta * 60 * id(${devicename}_pump_flow).state;
-      power = power / 0.860;
-      id(${devicename}_heating_power).publish_state(power);
-      return  (power / id(${devicename}_power_consumption).state);
-
-  - platform: template
-    name: COP_machine
-    id: "${devicename}_COP_machine"
-    update_interval: 5s
-    state_class: measurement
-    unit_of_measurement: ""
-    accuracy_decimals: 2
-    icon: mdi:poll
-    web_server:
-      sorting_group_id: sorting_group_sensor_indoor_unit
-    lambda: |-
-      if(id(${devicename}_power_consumption).state < 100){
-        id(${devicename}_heating_power).publish_state(0);
-        return 0;
-      }
       return  id(${devicename}_power_cooling_heating).state / id(${devicename}_power_consumption).state;  
     
-  
-  
-  
   # Register: 40103 ->  Temperature setting water ZONE1
   - platform: modbus_controller
     modbus_controller_id: modbus_heatpump
@@ -579,8 +581,8 @@ sensor:
   # Register: 40161 ->  compressor high temperature
   - platform: modbus_controller
     modbus_controller_id: modbus_heatpump
-    name: "Compressor High R290 temperature"
-    id: "${devicename}_compressor_high_temp"
+    name: "Compressor Discharge temperature"
+    id: "${devicename}_compressor_discharge_high_temp"
     state_class: measurement
     register_type: holding
     address: 40161
@@ -597,8 +599,8 @@ sensor:
   # Register: 40162 ->  compressor low temperature
   - platform: modbus_controller
     modbus_controller_id: modbus_heatpump
-    name: "Compressor low R290 temperature"
-    id: "${devicename}_compressor_low_temp"
+    name: "Compressor Suction temperature"
+    id: "${devicename}_compressor_suction_low_temp"
     state_class: measurement
     register_type: holding
     address: 40162
@@ -786,198 +788,10 @@ sensor:
     
   
      
-############  REGISTROS sin documentar  ##############################  
-###########################################################################  
-
-  - platform: modbus_controller
-    modbus_controller_id: modbus_heatpump
-    name: "reg 40129"
-    id: "${devicename}_reg40129"
-    state_class: measurement
-    register_type: holding
-    address: 40129
-    value_type: U_WORD      
-
-  - platform: modbus_controller
-    modbus_controller_id: modbus_heatpump
-    name: "reg 40154"
-    id: "${devicename}_reg40154"
-    state_class: measurement
-    register_type: holding
-    address: 40154
-    value_type: U_WORD 
-
-  - platform: modbus_controller
-    modbus_controller_id: modbus_heatpump
-    name: "reg 40155"
-    id: "${devicename}_reg40155"
-    state_class: measurement
-    register_type: holding
-    address: 40155
-    value_type: U_WORD  
-
-  - platform: modbus_controller
-    modbus_controller_id: modbus_heatpump
-    name: "reg 40156"
-    id: "${devicename}_reg40156"
-    state_class: measurement
-    register_type: holding
-    address: 40156
-    value_type: U_WORD     
-
-
-
-  - platform: modbus_controller
-    modbus_controller_id: modbus_heatpump
-    name: "reg 40190"
-    id: "${devicename}_reg40190"
-    state_class: measurement
-    register_type: holding
-    address: 40190
-    value_type: U_WORD 
-
-
-
-
-#####################################3 
-#  
-
-
-
-  
-
 
 
 text_sensor:
   
-  ########### THERMOSTAT #################
-  
-
-  #Register 0x000D Power on-off status
-  - platform: modbus_controller
-    modbus_controller_id: modbus_thermostat
-    id: thermostat_power_onoff
-    name: "Thermostat Power ON/OFF"
-    web_server:
-      sorting_group_id: sorting_group_thermostat
-      sorting_weight: 20
-    register_type: holding
-    bitmask: 0
-    address: 0x000D
-    raw_encode: HEXBYTES
-    lambda: |-
-      uint16_t value = modbus_controller::word_from_hex_str(x, 0);
-      switch (value) {
-        case 0: { 
-          auto call = id(climate_control_pid).make_call();
-          call.set_mode("OFF");
-          call.perform();
-          return std::string("OFF");
-        }
-
-        case 1: {
-          auto call = id(climate_control_pid).make_call();
-          std::string str= id(thermostat_work_mode).state;
-          if(str == "Heating") str="HEAT";
-          else if(str== "Cooling") str="COOL";
-          else str="ON";
-          call.set_mode(str);
-          call.perform();
-          return std::string("ON");
-        }  
-        default: return std::string("Unknown");
-      }
-      return x;    
-
-  #Register 0x000F Work mode
-  - platform: modbus_controller
-    modbus_controller_id: modbus_thermostat
-    id: thermostat_work_mode
-    name: "Thermostat Work Mode"
-    web_server:
-      sorting_group_id: sorting_group_thermostat
-      sorting_weight: 20
-    register_type: holding
-    bitmask: 0x00FF
-    address: 0x000F
-    raw_encode: HEXBYTES
-    lambda: |-
-      uint16_t value = modbus_controller::word_from_hex_str(x, 0);
-      value = value & 0x00FF;
-      switch (value) {
-        case 0: {
-          auto call = id(${devicename}_set_operational_mode).make_call();
-          call.set_option("Cool");            //Coment line for dhw system
-          //call.set_option("Cool + Dhw");    //Uncoment line for dhw system
-          call.perform(); 
-
-          if(id(thermostat_power_onoff).state == "OFF") return std::string("Cooling");
-          
-          auto call2 = id(climate_control_pid).make_call();
-          call2.set_mode("COOL");
-          call2.perform();
-          return std::string("Cooling");  
-        }
-
-        case 1: return std::string("Ventilation");
-        
-        case 2: {
-          auto call = id(${devicename}_set_operational_mode).make_call();
-          call.set_option("Heat");            //Coment line for dhw system
-          //call.set_option("Heat + Dhw");    //Uncoment line for dhw system
-          call.perform();
-          
-          if(id(thermostat_power_onoff).state == "OFF") return std::string("Heating");
-          
-          auto call2 = id(climate_control_pid).make_call();
-          call2.set_mode("HEAT");
-          call2.perform();
-          return std::string("Heating");
-        }  
-
-        case 3: 
-          //id(${devicename}_set_operational_mode).publish_state("Heat");
-          return std::string("Floor heating");
-        
-        case 4: 
-          //id(${devicename}_set_operational_mode).publish_state("Heat");
-          return std::string("Heating + floor heating");
-        
-        default: return std::string(x);
-      }
-    
-
-    
-
-               
-
-  #Register 0x0010 Fan speed
-  - platform: modbus_controller
-    modbus_controller_id: modbus_thermostat
-    id: thermostat_fan_speed
-    name: "Thermostat Fan speed"
-    web_server:
-      sorting_group_id: sorting_group_thermostat
-      sorting_weight: 15
-    register_type: holding
-    address: 0x0010
-    bitmask: 0
-    raw_encode: HEXBYTES
-    lambda: |-
-      uint16_t value = modbus_controller::word_from_hex_str(x, 0);
-      switch (value) {
-        case 0: return std::string("Auto");
-        case 1: return std::string("Low");
-        case 2: return std::string("Medium");
-        case 3: return std::string("High");
-        default: return std::string("Unknown");
-      }
-      return x;
-
-  
-    
-
-
   ############# HEATPUMP #####################
 
   #Register:  40101 ON/OFF state
@@ -1093,6 +907,7 @@ text_sensor:
       }
       return x; 
 
+# Register 40153 -> Current operation mode
   - platform: modbus_controller
     modbus_controller_id: modbus_heatpump
     id: "${devicename}_current_operation_mode"
@@ -1115,23 +930,7 @@ text_sensor:
       }
       return x;
 
-  #- platform: modbus_controller
-  #  modbus_controller_id: "${devicename}"
-  #  id: "${devicename}_error_sub_code"
-  #  name: "Error sub-code"
-  #  web_server: 
-  #    sorting_group_id: sorting_group_sensor_indoor_unit
-  #    sorting_weight: 90
-  #  register_type: holding
-  #  address: 40204
-  #  icon: "mdi:alert-octagram"
-  #  lambda: |-
-  #    uint16_t value = modbus_controller::word_from_hex_str(x, 0);
-  #    switch (value){
-  #    
-  #    }
-  #    return x;
-#
+  # Register 40205 -> Error code
   - platform: modbus_controller
     modbus_controller_id: modbus_heatpump
     id: "${devicename}_error_code"
@@ -1226,12 +1025,7 @@ text_sensor:
 
 
 
-
-
-
-
-
-# Intervalos para contadores
+# Counters
 interval:
   - interval: 60s
     then:
@@ -1244,22 +1038,35 @@ interval:
                 id(compressor_count_hour) += 1.0 / 60.0;
 
 
-# Reset cada hora y día
-  - interval: 1h
-    then:
-      - globals.set:
-          id: compressor_start_count_hour
-          value: '0'
+# Counters reset
+time:
+  - platform: sntp
+    id: reloj
 
-  - interval: 24h
-    then:
-      - globals.set:
-          id: compressor_start_count_day
-          value: '0'
-      - globals.set:
-          id: compressor_daily_on_time
-          value: '0'
-    
+    on_time:
+      # Reset every day
+      - hours: 0
+        minutes: 0
+        seconds: 0
+        then:
+          - globals.set:
+              id: compressor_start_count_day
+              value: '0'
+          - globals.set:
+              id: compressor_daily_on_time
+              value: '0'
+
+      # Reset every hour
+      - seconds: 0
+        minutes: 0
+        then:
+          - globals.set:
+              id: compressor_start_count_hour
+              value: '0'
+
+
+  
+
     
 
 

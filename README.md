@@ -38,8 +38,8 @@ Añade las entidades de sensores y controles según tus necesidades.
 
 ## 🔌 Conexión Modbus
 
-Componente	Pin ESP32	Descripción.
-RS485 A	GPIO17 (TX)	Línea A
+Componente	Pin ESP32	Descripción.</br>
+RS485 A	GPIO17 (TX)	Línea A</br>
 RS485 B	GPIO16 (RX)	Línea B
 
 ## Schematics
