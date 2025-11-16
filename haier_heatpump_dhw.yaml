@@ -1,6 +1,7 @@
 substitutions:
-  devicename: haier
-  description: HAIER 8Kw R290 
+  devicename: haier_aw062_mugha
+  description: HAIER gtR290 
+
 
 esphome:
   name: "${devicename}"
