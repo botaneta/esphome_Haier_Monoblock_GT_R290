@@ -400,7 +400,6 @@ sensor:
       sorting_group_id: sorting_group_sensor_indoor_unit
     lambda: |-
       if(id(${devicename}_power_consumption).state < 100){
-        id(${devicename}_heating_power).publish_state(0);
         return 0;
       }
       return  id(${devicename}_power_cooling_heating).state / id(${devicename}_power_consumption).state;  
