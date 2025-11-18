@@ -482,7 +482,7 @@ sensor:
     state_class: measurement
     register_type: holding
     address: 0x9ca7
-    value_type: U_WORD
+    value_type: S_WORD
     web_server:
       sorting_group_id: sorting_group_settings
     unit_of_measurement: "ºC"
@@ -498,7 +498,7 @@ sensor:
     id: "${devicename}_dhw_temp_setting"
     register_type: holding
     address: 40107      
-    value_type: U_WORD
+    value_type: S_WORD
     unit_of_measurement: "°C"
     device_class: temperature
     accuracy_decimals: 1
@@ -514,7 +514,7 @@ sensor:
     id: "${devicename}_tank_temp_sterilization"
     register_type: holding
     address: 40109
-    value_type: U_WORD
+    value_type: S_WORD
     unit_of_measurement: "°C"
     device_class: temperature
     accuracy_decimals: 0
@@ -530,7 +530,7 @@ sensor:
     register_type: holding
     icon: mdi:home-thermometer-outline
     address: 40141
-    value_type: U_WORD
+    value_type: S_WORD
     web_server:
       sorting_group_id: sorting_group_sensor_outdoor_unit
     unit_of_measurement: "ºC"
@@ -547,7 +547,7 @@ sensor:
     state_class: measurement
     register_type: holding
     address: 40143
-    value_type: U_WORD
+    value_type: S_WORD
     web_server:
       sorting_group_id: sorting_group_sensor_indoor_unit
     unit_of_measurement: "ºC"
@@ -565,7 +565,7 @@ sensor:
     register_type: holding
     icon: mdi:coolant-temperature
     address: 40151
-    value_type: U_WORD
+    value_type: S_WORD
     web_server:
       sorting_group_id: sorting_group_sensor_outdoor_unit
     unit_of_measurement: "ºC"
@@ -583,7 +583,7 @@ sensor:
     register_type: holding
     icon: mdi:coolant-temperature
     address: 40152
-    value_type: U_WORD
+    value_type: S_WORD
     web_server:
       sorting_group_id: sorting_group_sensor_outdoor_unit
     unit_of_measurement: "ºC"
@@ -685,7 +685,7 @@ sensor:
     state_class: measurement
     register_type: holding
     address: 40161
-    value_type: U_WORD
+    value_type: S_WORD
     web_server:
       sorting_group_id: sorting_group_sensor_outdoor_unit
       sorting_weight: 12
@@ -703,7 +703,7 @@ sensor:
     state_class: measurement
     register_type: holding
     address: 40162
-    value_type: U_WORD
+    value_type: S_WORD
     web_server:
       sorting_group_id: sorting_group_sensor_outdoor_unit
       sorting_weight: 13
@@ -721,7 +721,7 @@ sensor:
     state_class: measurement
     register_type: holding
     address: 40163
-    value_type: U_WORD
+    value_type: S_WORD
     web_server:
       sorting_group_id: sorting_group_sensor_outdoor_unit
       sorting_weight: 16
@@ -739,7 +739,7 @@ sensor:
     state_class: measurement
     register_type: holding
     address: 40164
-    value_type: U_WORD
+    value_type: S_WORD
     web_server:
       sorting_group_id: sorting_group_sensor_outdoor_unit
       sorting_weight: 15
@@ -757,7 +757,7 @@ sensor:
     state_class: measurement
     register_type: holding
     address: 40165
-    value_type: U_WORD
+    value_type: S_WORD
     web_server:
       sorting_group_id: sorting_group_sensor_outdoor_unit
       sorting_weight: 14
