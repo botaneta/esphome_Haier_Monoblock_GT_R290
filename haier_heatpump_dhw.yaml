@@ -16,15 +16,18 @@ esp32:
   framework:
     type: esp-idf
 
+# Enable logging
 logger:
   level: DEBUG
   baud_rate: 0
 
+# Enable Home Assistant API
 api:
 #  reboot_timeout: 
 #    minutes: 10
 
 web_server:
+  #port: 80
   version: 3
   sorting_groups:
     - id: sorting_group_control
@@ -80,6 +83,10 @@ globals:
   - id: compressor_count_hour
     restore_value: yes
     type: float
+    initial_value: '0.0'
+  - id: desfrosting_count
+    restore_value: yes
+    type: int
     initial_value: '0'
   - id: motor_running
     type: bool
@@ -120,11 +127,14 @@ binary_sensor:
     bitmask: 0x1
     register_type: holding
     address: 40139
-
+    on_press: 
+      then:
+        - lambda: |-
+            id(desfrosting_count) += 1;
 
 number:
 
-  ###################  HEATPUMP  ##############################     
+ ###################  HEATPUMP  ##############################     
   # Register 40003 Temperature setting of zone1
   - platform: modbus_controller
     modbus_controller_id: modbus_heatpump
@@ -196,14 +206,20 @@ number:
     device_class: power_factor
     min_value: 0
     max_value: 100
-    step: 1  
+    step: 1
+    
+    
 
+
+  
+    
 
 select:
 
   # Register: 40001 -> ON/OFF state
   - platform: modbus_controller
     modbus_controller_id: modbus_heatpump
+    id: "${devicename}_set_power_onoff"
     name: "Power on/off"
     address: 40001
     entity_category: config
@@ -211,7 +227,7 @@ select:
     web_server:
         sorting_group_id: sorting_group_control
     value_type: U_WORD
-    optimistic: true
+    optimistic: false
     optionsmap: 
       "Wait": 0
       "ON": 1
@@ -247,7 +263,7 @@ select:
       "Heat": 2
       "Cool": 1
       "Auto": 0
-
+    
   # Register: 40008 -> Set ECO Mode
   - platform: modbus_controller
     modbus_controller_id: modbus_heatpump
@@ -309,13 +325,12 @@ select:
       "OFF": 1
       "ON": 2
     write_lambda: |-
-      // La escritura es solo cuando se cambia la opción
       if (x == "ON") {
         return 0x0001;
       }else if (x == "OFF") {
         return 0x0000;
       }else{
-        return {};  // Retorna vacío para evitar conflictos    
+        return {};   
       }    
 
 # Register: 40012 -> Work mode
@@ -357,10 +372,22 @@ select:
     optionsmap:
       "NO": 0
       "YES": 1
-
+    
+  
+  
 sensor:
   
   ######## HEATPUMP #######################
+  - platform: template
+    name: "Defrosting Count"
+    id: "${devicename}_defrosting_count"
+    unit_of_measurement: ""
+    icon: mdi:counter
+    accuracy_decimals: 0
+    update_interval: 10s
+    lambda: |-
+      return id(desfrosting_count);
+  
   - platform: template
     name: "Compressor Starts Per Hour"
     id: "${devicename}_compressor_start_count_hour"
@@ -432,7 +459,7 @@ sensor:
     unit_of_measurement: ""
     accuracy_decimals: 1
     web_server:
-      sorting_group_id: sorting_group_sensor_indoor_unit        
+      sorting_group_id: sorting_group_sensor_indoor_unit    
 
   - platform: template
     name: "COP calculated"
@@ -470,10 +497,8 @@ sensor:
       if(id(${devicename}_power_consumption).state < 100){
         return 0;
       }
-      return  id(${devicename}_power_cooling_heating).state / id(${devicename}_power_consumption).state;     
-  
-  
-  
+      return  id(${devicename}_power_cooling_heating).state / id(${devicename}_power_consumption).state;  
+    
   # Register: 40103 ->  Temperature setting water ZONE1
   - platform: modbus_controller
     modbus_controller_id: modbus_heatpump
@@ -481,7 +506,7 @@ sensor:
     id: "${devicename}_setting_temp_water_z1"
     state_class: measurement
     register_type: holding
-    address: 0x9ca7
+    address: 40103
     value_type: S_WORD
     web_server:
       sorting_group_id: sorting_group_settings
@@ -538,7 +563,7 @@ sensor:
     accuracy_decimals: 1
     filters:
       - multiply: 0.1
-
+      
   # Register: 40143 ->  Temperature water ZONE1
   - platform: modbus_controller
     modbus_controller_id: modbus_heatpump
@@ -554,7 +579,24 @@ sensor:
     device_class: temperature
     accuracy_decimals: 1
     filters:
-      - multiply: 0.1  
+      - multiply: 0.1 
+
+  # Register: 40147 ->  DHW Tank Temperature
+  - platform: modbus_controller
+    modbus_controller_id: modbus_heatpump
+    name: "DHW Tank Temperature"
+    id: "${devicename}_dhw_tank_temp"
+    state_class: measurement
+    register_type: holding
+    address: 40147
+    value_type: S_WORD
+    web_server:
+      sorting_group_id: sorting_group_sensor_dhw
+    unit_of_measurement: "ºC"
+    device_class: temperature
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1    
 
   # Register: 40151 ->  Inlet temperature heater
   - platform: modbus_controller
@@ -850,6 +892,7 @@ sensor:
     unit_of_measurement: "W"
     device_class: power
     accuracy_decimals: 1
+    
 
   # Register 40198 -> Power heating/cooling 
   - platform: modbus_controller
@@ -881,12 +924,16 @@ sensor:
       sorting_group_id: sorting_group_sensor_outdoor_unit
     filters: 
       - lambda: if(x < 10){return 0;}  
-                return x;    
-      
+                return x;
+          
+    
+  
+     
 
 
 text_sensor:
- 
+  
+  ############# HEATPUMP #####################
 
   #Register:  40101 ON/OFF state
   - platform: modbus_controller
@@ -913,7 +960,7 @@ text_sensor:
   - platform: modbus_controller
     modbus_controller_id: modbus_heatpump
     id: "${devicename}_setting_mode"
-    name: "Mode setting"
+    name: "Mode"
     web_server:
       sorting_group_id: sorting_group_settings
       sorting_weight: 2
@@ -997,7 +1044,7 @@ text_sensor:
         case 0: return std::string("Normal");
         case 1: return std::string("Silent");
         case 2: return std::string("Turbo");
-        default: return std::string("Unknown");
+        default: return std::string(x);
       }
       return x; 
   - platform: modbus_controller
@@ -1073,7 +1120,9 @@ text_sensor:
     register_type: holding
     address: 40205
     icon: "mdi:alert-octagram"
+    raw_encode: HEXBYTES
     lambda: |-
+      ESP_LOGE("ERROR", "  CODE ERROR: %s", x.c_str());
       uint16_t value = modbus_controller::word_from_hex_str(x, 0);
       switch (value){
         case 1: return std::string("E01 HU Water inlet temperature sensor abnormality");
@@ -1151,9 +1200,7 @@ text_sensor:
         case 124: return std::string("E124 Compressor Driver PCB Three-phase power supply abnormality");
       }
       return x;
-#
 
-      
 
 
 
@@ -1196,5 +1243,13 @@ time:
               id: compressor_start_count_hour
               value: '0'
 
+
+  
+
+    
+
+
+       
+          
 
   

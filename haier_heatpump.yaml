@@ -11,7 +11,6 @@ esphome:
     name: "${devicename}.${description}"
     version: 1.0.0
 
-
 esp32:
   board: esp32dev
   framework:
@@ -26,7 +25,6 @@ logger:
 api:
 #  reboot_timeout: 
 #    minutes: 10
-  
 
 web_server:
   #port: 80
@@ -61,9 +59,7 @@ wifi:
 
 captive_portal:
 
-
 globals:
-  
   - id: compressor_start_count
     type: int
     restore_value: yes
@@ -93,8 +89,6 @@ globals:
     restore_value: yes
     initial_value: 'false'
 
-
-
 uart:
   id: mod_bus         # CONNECTION ESP32 PINOUT TO ADAPTER TTL-RS485 
   tx_pin: 17          # PIN TX -----> pin TX ADPATER TTL-RS485
@@ -113,7 +107,7 @@ modbus_controller:
     modbus_id: modbus1
     setup_priority: -10
     update_interval: 10s    # Update frequency
-  
+
 
 
 binary_sensor:
@@ -129,8 +123,11 @@ binary_sensor:
     bitmask: 0x1
     register_type: holding
     address: 40139
+    on_press: 
+      then:
+        - lambda: |-
+            id(desfrosting_count) += 1;
 
- 
 number:
 
  ###################  HEATPUMP  ##############################     
@@ -181,7 +178,7 @@ number:
 
 select:
 
-  # Register: 40001 ON/OFF state
+  # Register: 40001 -> ON/OFF state
   - platform: modbus_controller
     modbus_controller_id: modbus_heatpump
     id: "${devicename}_set_power_onoff"
@@ -207,7 +204,7 @@ select:
         return {};  // Retorna vacío para evitar conflictos    
       }
 
-  # Register: 40002
+  # Register: 40002 -> Mode Setting
   - platform: modbus_controller
     modbus_controller_id: modbus_heatpump
     name: "Operational Mode"
@@ -252,7 +249,7 @@ select:
         return {};  
       }
 
-  # Register: 40012 -> Work mode
+# Register: 40012 -> Work mode
   - platform: modbus_controller
     modbus_controller_id: modbus_heatpump
     name: "Work mode"
@@ -273,12 +270,12 @@ select:
       }else if (x == "Silent") {
         return 0x0001;
       }else if (x == "Normal") {
-        return 0x000;  
+        return 0x0000;  
       }else{
         return {};  
       }  
 
-  # Register: 40021 -> Set forced defrosting for outdor unit
+# Register: 40021 -> Set forced defrosting for outdor unit
   - platform: modbus_controller
     modbus_controller_id: modbus_heatpump
     name: "Force defrosting"
@@ -297,6 +294,16 @@ select:
 sensor:
   
   ######## HEATPUMP #######################
+  - platform: template
+    name: "Defrosting Count"
+    id: "${devicename}_defrosting_count"
+    unit_of_measurement: ""
+    icon: mdi:counter
+    accuracy_decimals: 0
+    update_interval: 10s
+    lambda: |-
+      return id(desfrosting_count);
+  
   - platform: template
     name: "Compressor Starts Per Hour"
     id: "${devicename}_compressor_start_count_hour"
@@ -424,6 +431,7 @@ sensor:
     accuracy_decimals: 1
     filters:
       - multiply: 0.5
+
 
   # Register: 40141 ->  Outdoor unit ambient temperature
   - platform: modbus_controller
