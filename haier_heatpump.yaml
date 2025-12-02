@@ -84,6 +84,10 @@ globals:
     restore_value: yes
     type: float
     initial_value: '0.0'
+  - id: desfrosting_count
+    restore_value: yes
+    type: int
+    initial_value: '0'
   - id: motor_running
     type: bool
     restore_value: yes
