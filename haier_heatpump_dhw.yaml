@@ -448,6 +448,10 @@ sensor:
     state_class: measurement
     unit_of_measurement: W
     accuracy_decimals: 1
+    filters:
+      - sliding_window_moving_average:
+          window_size: 10
+          send_every: 1
     web_server:
       sorting_group_id: sorting_group_sensor_indoor_unit
 
@@ -458,6 +462,10 @@ sensor:
     state_class: measurement
     unit_of_measurement: ""
     accuracy_decimals: 1
+    filters:
+      - sliding_window_moving_average:
+          window_size: 10
+          send_every: 1
     web_server:
       sorting_group_id: sorting_group_sensor_indoor_unit    
 
@@ -491,6 +499,10 @@ sensor:
     unit_of_measurement: ""
     accuracy_decimals: 2
     icon: mdi:poll
+    filters:
+      - sliding_window_moving_average:
+          window_size: 10
+          send_every: 1
     web_server:
       sorting_group_id: sorting_group_sensor_indoor_unit
     lambda: |-
@@ -826,6 +838,9 @@ sensor:
     accuracy_decimals: 2
     filters:
       - multiply: 0.1
+      - sliding_window_moving_average:
+          window_size: 20
+          send_every: 1
   
   # Register 40192 -> water pressure
   - platform: modbus_controller
@@ -905,6 +920,10 @@ sensor:
     value_type: U_WORD
     unit_of_measurement: "W"
     device_class: power
+    filters:
+      - sliding_window_moving_average:
+          window_size: 10
+          send_every: 1
     web_server: 
       sorting_group_id: sorting_group_sensor_indoor_unit
 
@@ -1219,32 +1238,34 @@ interval:
 
 # Counters reset
 time:
+  - platform: homeassistant
+    id: reloj_ha
+
   - platform: sntp
     id: reloj
-
+    timezone: Europe/Madrid
+    servers:
+      - time.google.com
+      - time.cloudflare.com
+    
     on_time:
-      # Reset every day
-      - hours: 0
+      # Reset every day 
+      - seconds: 0
         minutes: 0
-        seconds: 0
+        hours: 0
+        days_of_week: MON-SUN
         then:
-          - globals.set:
-              id: compressor_start_count_day
-              value: '0'
-          - globals.set:
-              id: compressor_daily_on_time
-              value: '0'
+          - lambda: |-
+                id(compressor_start_count_day) = 0;
+                id(compressor_daily_on_time) = 0;
 
       # Reset every hour
       - seconds: 0
         minutes: 0
+        hours: /1
         then:
-          - globals.set:
-              id: compressor_start_count_hour
-              value: '0'
-
-
-  
+          - lambda: |-
+                id(compressor_start_count_hour) = 0;
 
     
 
